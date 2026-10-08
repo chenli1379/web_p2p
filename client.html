@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Web P2P SDP QR</title>
+    <style>
+      :root {
+        --bg: #08111f;
+        --panel: rgba(15, 23, 42, 0.88);
+        --line: rgba(148, 163, 184, 0.18);
+        --text: #e5eefb;
+        --muted: #9db1c8;
+        --green: #34d399;
+        --danger: #f87171;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: linear-gradient(180deg, #07111c 0%, #0f172a 35%, #111827 100%);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        display: flex;
+        justify-content: center;
+        padding: max(12px, env(safe-area-inset-top)) 12px max(18px, env(safe-area-inset-bottom));
+      }
+
+      .app {
+        width: min(100%, 460px);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        box-shadow: 0 12px 20px rgba(15, 23, 42, 0.3);
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 1.02rem;
+        letter-spacing: 0.02em;
+      }
+
+      .status {
+        font-size: 0.74rem;
+        color: var(--green);
+        background: rgba(52, 211, 153, 0.09);
+        border: 1px solid rgba(52, 211, 153, 0.3);
+        border-radius: 999px;
+        padding: 8px 10px;
+        line-height: 1.2;
+      }
+
+      .video-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .video-card {
+        padding: 10px;
+      }
+
+      .video-card h3 {
+        margin: 0 0 8px;
+        color: var(--muted);
+        font-size: 0.83rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+
+      video {
+        display: block;
+        width: 100%;
+        height: 220px;
+        border-radius: 12px;
+        background: #000;
+        object-fit: cover;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        padding: 12px;
+      }
+
+      button {
+        text-align: center;
+        border: 1px solid var(--line);
+        background: rgba(15, 23, 42, 0.9);
+        color: var(--text);
+        padding: 11px 12px;
+        border-radius: 12px;
+        font-size: 0.88rem;
+        cursor: pointer;
+      }
+
+      button.primary { background: linear-gradient(135deg, #0ea5e9, #2563eb); border-color: rgba(14, 165, 233, 0.7); }
+      button.warning { background: linear-gradient(135deg, #f59e0b, #f97316); border-color: rgba(245, 158, 11, 0.7); }
+      button.danger { background: linear-gradient(135deg, #ef4444, #b91c1c); border-color: rgba(239, 68, 68, 0.8); }
+
+      .qr-box {
+        padding: 12px;
+      }
+
+      .qr-box h3, .sdp-box h3 {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 0.8rem;
+        letter-spacing: 0.04em;
+      }
+
+      .qr-wrap {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 14px;
+        min-height: 220px;
+      }
+
+      #qrCanvas {
+        width: min(100%, 220px);
+        height: auto;
+        background: rgba(255,255,255,0.92);
+        border-radius: 14px;
+        padding: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+      }
+
+      .sdp-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .sdp-box {
+        padding: 12px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 220px;
+        resize: vertical;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: rgba(15, 23, 42, 0.65);
+        color: var(--text);
+        padding: 10px 12px;
+        font: inherit;
+        line-height: 1.4;
+      }
+
+      .scan-modal {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(2, 6, 23, 0.78);
+        padding: 16px;
+        z-index: 20;
+      }
+
+      .scan-modal.hidden { display: none; }
+
+      .scanner-panel {
+        width: min(100%, 420px);
+        background: rgba(15, 23, 42, 0.97);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 12px;
+      }
+
+      .scanner-panel video {
+        height: 300px;
+      }
+
+      .scan-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      @media (min-width: 640px) {
+        .app { width: min(100%, 760px); }
+        .video-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .controls { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="header card">
+        <h1>Web P2P QR</h1>
+        <div id="status" class="status">准备中</div>
+      </header>
+
+      <section class="video-grid">
+        <div class="video-card card">
+          <h3>本地摄像头</h3>
+          <video id="localVideo" autoplay muted playsinline></video>
+        </div>
+        <div class="video-card card">
+          <h3>远端视频</h3>
+          <video id="remoteVideo" autoplay playsinline></video>
+        </div>
+      </section>
+
+      <div class="controls card">
+        <button id="startCameraBtn" class="primary">打开摄像头</button>
+        <button id="generateOfferBtn">生成 Offer</button>
+        <button id="generateAnswerBtn">生成 Answer</button>
+        <button id="scanSdpBtn" class="warning">扫描二维码</button>
+        <button id="resetBtn" class="danger">重置</button>
+      </div>
+
+      <div class="qr-box card">
+        <div style="width:100%;">
+          <h3>二维码</h3>
+          <div class="qr-wrap">
+            <canvas id="qrCanvas" width="220" height="220"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="sdp-grid">
+        <div class="sdp-box card">
+          <h3>Offer（过滤后）</h3>
+          <textarea id="offerSdp" readonly placeholder="Offer SDP 将显示在这里..."></textarea>
+        </div>
+        <div class="sdp-box card">
+          <h3>Answer（过滤后）</h3>
+          <textarea id="answerSdp" readonly placeholder="Answer SDP 将显示在这里..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div id="scanModal" class="scan-modal hidden">
+      <div class="scanner-panel">
+        <video id="scanVideo" autoplay playsinline muted></video>
+        <div class="scan-actions">
+          <button id="scanStartBtn" class="primary">开始扫描</button>
+          <button id="scanCloseBtn">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.6.0/dist/jsQR.min.js"></script>
+    <script>
+      const statusEl = document.getElementById('status');
+      const localVideo = document.getElementById('localVideo');
+      const remoteVideo = document.getElementById('remoteVideo');
+      const offerSdpEl = document.getElementById('offerSdp');
+      const answerSdpEl = document.getElementById('answerSdp');
+      const qrCanvas = document.getElementById('qrCanvas');
+      const scanModal = document.getElementById('scanModal');
+      const scanVideo = document.getElementById('scanVideo');
+
+      const state = {
+        localStream: null,
+        scanStream: null,
+        scanTimer: null,
+        peerConnection: null,
+        resumeLocalPreview: false,
+        offerSdp: '',
+        answerSdp: '',
+        activeQr: '',
+      };
+
+      function setStatus(message, isSuccess = true) {
+        statusEl.textContent = message;
+        statusEl.style.color = isSuccess ? 'var(--green)' : 'var(--danger)';
+        statusEl.style.background = isSuccess ? 'rgba(52, 211, 153, 0.09)' : 'rgba(248, 113, 113, 0.08)';
+      }
+
+      function normalizeSdp(value) {
+        return String(value || '').replace(/\r\n/g, '\n').trim();
+      }
+
+      function renderQr(text) {
+        state.activeQr = text || '';
+        if (!text) {
+          const ctx = qrCanvas.getContext('2d');
+          ctx.clearRect(0, 0, qrCanvas.width, qrCanvas.height);
+          return;
+        }
+
+        QRCode.toCanvas(qrCanvas, text, {
+          width: 220,
+          margin: 2,
+          color: { dark: '#0f172a', light: '#ffffff' }
+        }, (error) => {
+          if (error) {
+            setStatus('二维码生成失败：' + error.message, false);
+          }
+        });
+      }
+
+      function updateSdpPanels() {
+        offerSdpEl.value = state.offerSdp;
+        answerSdpEl.value = state.answerSdp;
+      }
+
+      function getMediaTypeFromHeader(line) {
+        return String(line).split(' ')[0].replace(/^m=/, '').toLowerCase();
+      }
+
+      function filterSdpCodecs(sdpText) {
+        const lines = normalizeSdp(sdpText).split('\n');
+        const output = [];
+        let currentMediaType = null;
+        let currentHeader = null;
+        let mediaLines = [];
+
+        function flushMedia() {
+          if (!currentHeader || !currentMediaType) return;
+
+          const headerParts = currentHeader.split(/\s+/);
+          const payloads = headerParts.slice(3);
+          const allowedSet = currentMediaType === 'audio' ? new Set(['opus']) : currentMediaType === 'video' ? new Set(['h264']) : new Set();
+          const keptPayloads = [];
+          const rtpmapByPayload = {};
+
+          for (const line of mediaLines) {
+            const rtpMapMatch = line.match(/^a=rtpmap:(\d+)\s+([^\s]+)/);
+            if (!rtpMapMatch) continue;
+            const payload = rtpMapMatch[1];
+            const codec = rtpMapMatch[2].split('/')[0].toLowerCase();
+            rtpmapByPayload[payload] = codec;
+          }
+
+          for (const payload of payloads) {
+            const codec = rtpmapByPayload[payload];
+            if (codec && allowedSet.has(codec)) {
+              keptPayloads.push(payload);
+            }
+          }
+
+          const filteredHeader = headerParts.slice(0, 3).concat(keptPayloads).join(' ');
+          output.push(filteredHeader);
+
+          for (const line of mediaLines) {
+            const rtpMatch = line.match(/^a=rtpmap:(\d+)/);
+            const fmtpMatch = line.match(/^a=fmtp:(\d+)/);
+            const fbMatch = line.match(/^a=rtcp-fb:(\d+)/);
+            const fbStar = /^a=rtcp-fb:\*/.test(line);
+
+            if (rtpMatch) {
+              if (keptPayloads.includes(rtpMatch[1])) output.push(line);
+              continue;
+            }
+
+            if (fmtpMatch) {
+              if (keptPayloads.includes(fmtpMatch[1])) output.push(line);
+              continue;
+            }
+
+            if (fbMatch) {
+              if (keptPayloads.includes(fbMatch[1])) output.push(line);
+              continue;
+            }
+
+            if (fbStar) {
+              output.push(line);
+              continue;
+            }
+
+            if (/^a=mid:|^a=sendrecv$|^a=recvonly$|^a=inactive$|^a=setup:|^a=rtcp-mux$|^a=ice-ufrag:|^a=ice-pwd:|^a=fingerprint:|^a=ssrc:|^a=msid:|^a=mslabel:|^a=label:|^a=rtcp-rsize$|^a=group:|^a=msid-semantic:/.test(line)) {
+              output.push(line);
+            }
+          }
+
+          currentHeader = null;
+          currentMediaType = null;
+          mediaLines = [];
+        }
+
+        for (const line of lines) {
+          if (line.startsWith('m=')) {
+            flushMedia();
+            currentHeader = line;
+            currentMediaType = getMediaTypeFromHeader(line);
+            mediaLines = [];
+            continue;
+          }
+
+          if (currentHeader) {
+            mediaLines.push(line);
+          } else {
+            if (!/^a=extmap:|^a=rtcp-rsize$/.test(line)) {
+              output.push(line);
+            }
+          }
+        }
+
+        flushMedia();
+        return output.join('\r\n') + '\r\n';
+      }
+
+      function createPeerConnection() {
+        if (state.peerConnection) {
+          state.peerConnection.close();
+          state.peerConnection = null;
+        }
+
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        });
+
+        pc.ontrack = (event) => {
+          remoteVideo.srcObject = event.streams[0];
+        };
+
+        pc.onconnectionstatechange = () => {
+          const status = pc.connectionState;
+          if (status === 'connected') setStatus('P2P 连接已建立');
+          else if (status === 'connecting') setStatus('P2P 连接中...');
+          else if (status === 'failed') setStatus('P2P 连接失败', false);
+        };
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate) console.log('ICE candidate:', event.candidate.candidate);
+        };
+
+        if (state.localStream) {
+          state.localStream.getTracks().forEach((track) => {
+            pc.addTrack(track, state.localStream);
+          });
+        }
+
+        state.peerConnection = pc;
+        return pc;
+      }
+
+      async function ensureLocalStream() {
+        if (state.localStream) return state.localStream;
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: true,
+        });
+
+        state.localStream = stream;
+        localVideo.srcObject = stream;
+        return stream;
+      }
+
+      async function waitForGatheringComplete(peerConnection) {
+        if (peerConnection.iceGatheringState === 'complete') return;
+        return new Promise((resolve) => {
+          const listener = () => {
+            if (peerConnection.iceGatheringState === 'complete') {
+              peerConnection.removeEventListener('icegatheringstatechange', listener);
+              resolve();
+            }
+          };
+          peerConnection.addEventListener('icegatheringstatechange', listener);
+        });
+      }
+
+      function setQrFromOfferAnswer() {
+        if (state.answerSdp) {
+          renderQr(state.answerSdp);
+        } else if (state.offerSdp) {
+          renderQr(state.offerSdp);
+        } else {
+          renderQr('');
+        }
+      }
+
+      async function createOffer() {
+        try {
+          await ensureLocalStream();
+          const pc = createPeerConnection();
+          const rawOffer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+          const filteredOffer = filterSdpCodecs(rawOffer.sdp);
+          await pc.setLocalDescription({ ...rawOffer, sdp: filteredOffer });
+          await waitForGatheringComplete(pc);
+
+          state.offerSdp = pc.localDescription.sdp;
+          state.answerSdp = '';
+          updateSdpPanels();
+          renderQr(state.offerSdp);
+          setStatus('Offer SDP 已生成，可扫描给对端');
+        } catch (error) {
+          console.error(error);
+          setStatus('生成 Offer 失败：' + error.message, false);
+        }
+      }
+
+      async function createAnswer() {
+        try {
+          if (!state.peerConnection || !state.peerConnection.remoteDescription) {
+            setStatus('请先扫描对端 Offer，再生成 Answer', false);
+            return;
+          }
+
+          const pc = state.peerConnection;
+          const rawAnswer = await pc.createAnswer();
+          const filteredAnswer = filterSdpCodecs(rawAnswer.sdp);
+          await pc.setLocalDescription({ ...rawAnswer, sdp: filteredAnswer });
+          await waitForGatheringComplete(pc);
+
+          state.answerSdp = pc.localDescription.sdp;
+          if (!state.offerSdp) {
+            state.offerSdp = state.peerConnection.remoteDescription.sdp;
+          }
+          updateSdpPanels();
+          renderQr(state.answerSdp);
+          setStatus('Answer SDP 已生成，可扫描给对端');
+        } catch (error) {
+          console.error(error);
+          setStatus('生成 Answer 失败：' + error.message, false);
+        }
+      }
+
+      async function processIncomingSdp(rawText, type) {
+        const sdp = normalizeSdp(rawText);
+        if (!sdp) {
+          setStatus('SDP 为空', false);
+          return;
+        }
+
+        const filteredSdp = filterSdpCodecs(sdp);
+        const pc = state.peerConnection || createPeerConnection();
+
+        try {
+          if (type === 'offer') {
+            state.offerSdp = filteredSdp;
+            await pc.setRemoteDescription({ type: 'offer', sdp: filteredSdp });
+            const rawAnswer = await pc.createAnswer();
+            const filteredAnswer = filterSdpCodecs(rawAnswer.sdp);
+            await pc.setLocalDescription({ ...rawAnswer, sdp: filteredAnswer });
+            await waitForGatheringComplete(pc);
+            state.answerSdp = pc.localDescription.sdp;
+            updateSdpPanels();
+            renderQr(state.answerSdp);
+            setStatus('已收到 Offer，生成 Answer');
+            return;
+          }
+
+          if (type === 'answer') {
+            if (!state.peerConnection || !state.peerConnection.remoteDescription) {
+              setStatus('请先生成 Offer，再接收 Answer', false);
+              return;
+            }
+            state.answerSdp = filteredSdp;
+            await state.peerConnection.setRemoteDescription({ type: 'answer', sdp: filteredSdp });
+            updateSdpPanels();
+            renderQr(state.answerSdp);
+            setStatus('远端 Answer 已接收');
+          }
+        } catch (error) {
+          console.error(error);
+          setStatus('处理 SDP 失败：' + error.message, false);
+        }
+      }
+
+      function inferTypeFromSdp(sdpText) {
+        return String(sdpText || '').includes('a=setup:') ? 'answer' : 'offer';
+      }
+
+      async function handleScannedText(rawText) {
+        const text = normalizeSdp(rawText);
+        if (!text) {
+          setStatus('扫描结果为空', false);
+          return;
+        }
+
+        const type = inferTypeFromSdp(text);
+        if (type === 'offer') {
+          state.offerSdp = filterSdpCodecs(text);
+        } else {
+          state.answerSdp = filterSdpCodecs(text);
+        }
+        updateSdpPanels();
+        await processIncomingSdp(text, type);
+      }
+
+      function stopCameraScanner() {
+        if (state.scanTimer) {
+          clearInterval(state.scanTimer);
+          state.scanTimer = null;
+        }
+        if (state.scanStream) {
+          state.scanStream.getTracks().forEach((track) => track.stop());
+          state.scanStream = null;
+        }
+        scanVideo.srcObject = null;
+        scanModal.classList.add('hidden');
+
+        if (state.resumeLocalPreview) {
+          ensureLocalStream().then(() => {
+            setStatus('摄像头已恢复');
+          }).catch((error) => {
+            setStatus('恢复摄像头失败：' + error.message, false);
+          });
+          state.resumeLocalPreview = false;
+        }
+      }
+
+      async function startCameraScanner() {
+        try {
+          if (state.localStream) {
+            state.localStream.getTracks().forEach((track) => track.stop());
+            state.localStream = null;
+            localVideo.srcObject = null;
+            state.resumeLocalPreview = true;
+          } else {
+            state.resumeLocalPreview = false;
+          }
+
+          scanModal.classList.remove('hidden');
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false,
+          });
+          state.scanStream = stream;
+          scanVideo.srcObject = stream;
+          setStatus('扫描中，请对准对端二维码');
+
+          state.scanTimer = setInterval(() => {
+            const video = scanVideo;
+            if (!video.videoWidth || !video.videoHeight) return;
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+
+            if (code && code.data) {
+              clearInterval(state.scanTimer);
+              stopCameraScanner();
+              handleScannedText(code.data);
+            }
+          }, 500);
+        } catch (error) {
+          console.error(error);
+          setStatus('扫码摄像头启动失败：' + error.message, false);
+          stopCameraScanner();
+        }
+      }
+
+      document.getElementById('startCameraBtn').addEventListener('click', async () => {
+        try {
+          await ensureLocalStream();
+          setStatus('摄像头已开启');
+        } catch (error) {
+          setStatus('打开摄像头失败：' + error.message, false);
+        }
+      });
+
+      document.getElementById('generateOfferBtn').addEventListener('click', createOffer);
+      document.getElementById('generateAnswerBtn').addEventListener('click', createAnswer);
+      document.getElementById('scanSdpBtn').addEventListener('click', startCameraScanner);
+      document.getElementById('scanStartBtn').addEventListener('click', startCameraScanner);
+      document.getElementById('scanCloseBtn').addEventListener('click', stopCameraScanner);
+
+      document.getElementById('resetBtn').addEventListener('click', () => {
+        if (state.peerConnection) {
+          state.peerConnection.close();
+          state.peerConnection = null;
+        }
+        if (state.localStream) {
+          state.localStream.getTracks().forEach((track) => track.stop());
+          state.localStream = null;
+        }
+        if (remoteVideo.srcObject) {
+          remoteVideo.srcObject.getTracks().forEach((track) => track.stop());
+          remoteVideo.srcObject = null;
+        }
+        localVideo.srcObject = null;
+        state.offerSdp = '';
+        state.answerSdp = '';
+        state.activeQr = '';
+        updateSdpPanels();
+        renderQr('');
+        setStatus('已重置');
+      });
+
+      window.addEventListener('beforeunload', () => {
+        stopCameraScanner();
+        if (state.peerConnection) state.peerConnection.close();
+        if (state.localStream) state.localStream.getTracks().forEach((track) => track.stop());
+      });
+
+      (async function init() {
+        try {
+          await ensureLocalStream();
+          createPeerConnection();
+          setStatus('摄像头已准备好');
+        } catch (error) {
+          setStatus('未能访问摄像头：' + error.message, false);
+        }
+      })();
+    </script>
+  </body>
+</html>
