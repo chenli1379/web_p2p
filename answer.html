@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Web P2P · Answer 端</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="header card">
+        <h1>Web P2P · Answer 端</h1>
+        <div id="status" class="status">准备中</div>
+      </header>
+
+      <section class="video-grid">
+        <div class="video-card card">
+          <h3>本地摄像头</h3>
+          <div class="video-wrap">
+            <video id="localVideo" autoplay muted playsinline></video>
+            <button class="fs-btn" data-fs-for="localVideo" title="全屏" aria-label="全屏">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="video-card card">
+          <h3>远端视频</h3>
+          <div class="video-wrap">
+            <video id="remoteVideo" autoplay playsinline></video>
+            <button class="fs-btn" data-fs-for="remoteVideo" title="全屏" aria-label="全屏">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div class="controls card">
+        <button id="scanOfferBtn" class="primary">扫描 Offer</button>
+        <button id="showAnswerBtn">重显 Answer 码</button>
+      </div>
+
+      <div class="qr-box card">
+        <div style="width:100%;">
+          <h3>Answer 二维码（给发起端扫）</h3>
+          <div class="qr-wrap">
+            <canvas id="qrCanvas" width="220" height="220"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="sdp-grid">
+        <div class="sdp-box card">
+          <h3>Offer（收到对端）</h3>
+          <textarea id="offerSdp" readonly placeholder="扫描对端 Offer 后显示在这里..."></textarea>
+        </div>
+        <div class="sdp-box card">
+          <h3>Answer（本端生成）</h3>
+          <textarea id="answerSdp" readonly placeholder="Answer SDP 将显示在这里..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div id="scanModal" class="scan-modal hidden">
+      <div class="scanner-panel">
+        <video id="scanVideo" autoplay playsinline muted></video>
+        <div class="scan-actions">
+          <button id="scanStartBtn" class="primary">开始扫描</button>
+          <button id="scanCloseBtn">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- qrcode@1.5.1 / jsQR@1.4.0 本地文件,避免 CDN 在国内不可达 -->
+    <script src="lib/qrcode.min.js"></script>
+    <script src="lib/jsqr.min.js"></script>
+    <script src="common.js"></script>
+    <script>
+      const offerSdpEl = document.getElementById('offerSdp');
+      const answerSdpEl = document.getElementById('answerSdp');
+
+      // 应答端流程:扫对端 Offer → 自动生成 Answer → 展示二维码 → 等待建连
+      async function acceptOffer(rawText) {
+        try {
+          const sdp = P2P.normalizeSdp(rawText);
+          if (!sdp) {
+            setStatus('扫描结果为空', false);
+            return;
+          }
+          if (P2P.inferTypeFromSdp(sdp) !== 'offer') {
+            setStatus('扫到的不是 Offer（对端也是应答端？）', false);
+            return;
+          }
+
+          setStatus('已收到 Offer，正在生成 Answer...');
+          await P2P.ensureLocalStream();
+          offerSdpEl.value = sdp;
+
+          const pc = P2P.createPeerConnection();
+          await pc.setRemoteDescription({ type: 'offer', sdp: P2P.filterSdpCodecs(sdp) });
+          const rawAnswer = await pc.createAnswer();
+          const filteredAnswer = P2P.filterSdpCodecs(rawAnswer.sdp);
+          await pc.setLocalDescription({ ...rawAnswer, sdp: filteredAnswer });
+
+          // 立即展示(尚无 ICE 候选),不等收集
+          let payload = P2P.buildQrPayload(pc.localDescription.sdp);
+          answerSdpEl.value = payload;
+          P2P.renderQr(payload);
+          setStatus('Answer 已生成，正在收集 ICE...');
+
+          // ICE 收集完成(或超时)后刷新为含候选的最终版
+          await P2P.waitForGatheringComplete(pc);
+          payload = P2P.buildQrPayload(pc.localDescription.sdp);
+          answerSdpEl.value = payload;
+          P2P.renderQr(payload);
+          setStatus('Answer 二维码就绪，请让发起端扫描');
+        } catch (error) {
+          console.error(error);
+          setStatus('处理 Offer 失败：' + error.message, false);
+        }
+      }
+
+      function scanOffer() {
+        P2P.openScanner(acceptOffer);
+      }
+
+      document.getElementById('scanOfferBtn').addEventListener('click', scanOffer);
+      document.getElementById('scanStartBtn').addEventListener('click', scanOffer);
+      document.getElementById('scanCloseBtn').addEventListener('click', P2P.closeScanner);
+
+      // 二维码被清掉/想再展示时,从当前连接里重取 Answer
+      document.getElementById('showAnswerBtn').addEventListener('click', () => {
+        const pc = P2P.state.peerConnection;
+        if (!pc || !pc.localDescription) {
+          setStatus('还没有生成过 Answer，请先扫描对端 Offer', false);
+          return;
+        }
+        const payload = P2P.buildQrPayload(pc.localDescription.sdp);
+        answerSdpEl.value = payload;
+        P2P.renderQr(payload);
+        setStatus('Answer 二维码已重显');
+      });
+
+      (async function init() {
+        try {
+          await P2P.ensureLocalStream();
+          setStatus('摄像头已准备好，等待扫描对端 Offer');
+        } catch (error) {
+          setStatus('未能访问摄像头：' + error.message, false);
+        }
+      })();
+    </script>
+  </body>
+</html>
