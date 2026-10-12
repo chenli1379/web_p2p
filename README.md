@@ -57,7 +57,6 @@ Recovery:
 - Both sides tried to scan at the same time and both ended up as the
   answerer? Tap "重新生成" on either device to return to the offerer role
   and start over.
-- To show your own QR code again, tap "重显我的二维码".
 
 ### Result
 
@@ -121,7 +120,6 @@ Recovery:
 
 - 两端同时抢扫、都变成了应答端？任一端点「重新生成」回到发起端状态
   重来。
-- 中途想再看一次自己这边的二维码：点「重显我的二维码」。
 
 ### 结果
 
