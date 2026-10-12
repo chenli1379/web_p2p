@@ -36,13 +36,11 @@
 
       <div class="controls card">
         <button id="scanPeerBtn" class="primary">扫描对端</button>
-        <button id="showQrBtn">重显我的二维码</button>
         <button id="regenBtn" class="warning">重新生成</button>
       </div>
 
       <div class="qr-box card">
         <div style="width:100%;">
-          <h3 id="qrTitle">我的二维码（Offer，给对端扫）</h3>
           <div class="qr-wrap">
             <canvas id="qrCanvas" width="220" height="220"></canvas>
           </div>
@@ -88,7 +86,6 @@
     <script>
       const localSdpEl = document.getElementById('localSdp');
       const remoteSdpEl = document.getElementById('remoteSdp');
-      const qrTitleEl = document.getElementById('qrTitle');
 
       // 单页双角色:两端打开的都是这一页,默认都是 offer(各自生成 Offer 码);
       // 谁先扫对端谁就转 answer。角色不靠页面区分,只看扫到的是什么:
@@ -101,9 +98,6 @@
       function showMyQr(pc) {
         const { sdp, type } = pc.localDescription;
         localSdpEl.value = P2P.slimSdpForQr(sdp);
-        qrTitleEl.textContent = type === 'answer'
-          ? '我的二维码（Answer，给对端扫）'
-          : '我的二维码（Offer，给对端扫）';
         return P2P.renderQr(P2P.buildQrPayload(sdp, type));
       }
 
@@ -206,16 +200,6 @@
       document.getElementById('scanPeerBtn').addEventListener('click', scanPeer);
       document.getElementById('scanStartBtn').addEventListener('click', scanPeer);
       document.getElementById('scanCloseBtn').addEventListener('click', P2P.closeScanner);
-
-      // 二维码被清掉/想再展示时,从当前连接里重取(offer/answer 哪种就显哪种)
-      document.getElementById('showQrBtn').addEventListener('click', () => {
-        const pc = P2P.state.peerConnection;
-        if (!pc || !pc.localDescription) {
-          setStatus('还没有生成二维码，请稍候或点「重新生成」', false);
-          return;
-        }
-        if (showMyQr(pc)) setStatus('二维码已重显');
-      });
 
       // 重置回 offer 状态重来(两端互抢 answer、连接失败重试等都走这里)
       document.getElementById('regenBtn').addEventListener('click', () => {
