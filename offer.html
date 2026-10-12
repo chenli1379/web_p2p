@@ -78,6 +78,14 @@
       const offerSdpEl = document.getElementById('offerSdp');
       const answerSdpEl = document.getElementById('answerSdp');
 
+      // 文本框显示可读的瘦身 SDP;二维码里放的是模板变量载荷,两者内容不同。
+      // 返回 renderQr 的结果,仅当二维码真的画出来才报「就绪」。
+      function showOffer(pc) {
+        const sdp = pc.localDescription.sdp;
+        offerSdpEl.value = P2P.slimSdpForQr(sdp);
+        return P2P.renderQr(P2P.buildQrPayload(sdp, 'offer'));
+      }
+
       // 发起端流程:生成 Offer → 展示二维码 → 扫对端 Answer → 建连
       async function createOfferFlow() {
         try {
@@ -88,18 +96,13 @@
           const filteredOffer = P2P.filterSdpCodecs(rawOffer.sdp);
           await pc.setLocalDescription({ ...rawOffer, sdp: filteredOffer });
 
-          // 立即展示(尚无 ICE 候选),不等收集
-          let payload = P2P.buildQrPayload(pc.localDescription.sdp);
-          offerSdpEl.value = payload;
-          P2P.renderQr(payload);
-          setStatus('Offer 已生成，正在收集 ICE...');
+          // 立即展示(尚无 ICE 候选),不等收集。此时载荷 nCand=0,对端扫到会被拒收
+          showOffer(pc);
+          setStatus('Offer 已生成，正在收集 ICE，请稍候再扫...');
 
           // ICE 收集完成(或超时)后刷新为含候选的最终版
           await P2P.waitForGatheringComplete(pc);
-          payload = P2P.buildQrPayload(pc.localDescription.sdp);
-          offerSdpEl.value = payload;
-          P2P.renderQr(payload);
-          setStatus('Offer 二维码就绪，请让应答端扫描');
+          if (showOffer(pc)) setStatus('Offer 二维码就绪，请让应答端扫描');
         } catch (error) {
           console.error(error);
           setStatus('生成 Offer 失败：' + error.message, false);
@@ -108,12 +111,13 @@
 
       async function acceptAnswer(rawText) {
         try {
-          const sdp = P2P.normalizeSdp(rawText);
+          // 模板载荷按前缀判角色;明文码(旧版页面)退回按 a=setup 判
+          const { sdp, role } = P2P.decodeScannedText(rawText);
           if (!sdp) {
             setStatus('扫描结果为空', false);
             return;
           }
-          if (P2P.inferTypeFromSdp(sdp) !== 'answer') {
+          if ((role || P2P.inferTypeFromSdp(sdp)) !== 'answer') {
             setStatus('扫到的不是 Answer（对端也是发起端？）', false);
             return;
           }
