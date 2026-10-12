@@ -62,7 +62,17 @@
 
     <div id="scanModal" class="scan-modal hidden">
       <div class="scanner-panel">
-        <video id="scanVideo" autoplay playsinline muted></video>
+        <div class="scan-stage">
+          <video id="scanVideo" autoplay playsinline muted></video>
+          <div class="scan-frame">
+            <span class="scan-corner tl"></span>
+            <span class="scan-corner tr"></span>
+            <span class="scan-corner bl"></span>
+            <span class="scan-corner br"></span>
+            <div class="scan-line"></div>
+          </div>
+          <div class="scan-badge">已识别</div>
+        </div>
         <div class="scan-actions">
           <button id="scanStartBtn" class="primary">开始扫描</button>
           <button id="scanCloseBtn">关闭</button>
@@ -101,8 +111,10 @@
           }
 
           setStatus('已收到 Offer，正在生成 Answer...');
-          await P2P.ensureLocalStream();
+          // 复原出的完整 Offer SDP 先落进文本框展示:即使随后取摄像头失败,
+          // 扫码结果也不丢(之前放在 ensureLocalStream 之后,摄像头一失败这里就空着)
           offerSdpEl.value = sdp;
+          await P2P.ensureLocalStream();
 
           const pc = P2P.createPeerConnection();
           await pc.setRemoteDescription({ type: 'offer', sdp: P2P.filterSdpCodecs(sdp) });
