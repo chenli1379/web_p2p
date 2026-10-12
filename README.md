@@ -10,10 +10,13 @@ P2P is implemented based on web pages, and signaling exchange uses QR codes gene
 ### Overview
 
 A serverless, peer-to-peer live video tool that runs entirely in the browser.
-Two camera-equipped devices on the same Wi-Fi each open a role-specific web
-page, exchange connection signaling by scanning the QR code shown on the
-peer's screen, and then view each other's camera feed in real time. No app
-install, no signaling server, and the pages never talk to each other.
+Two camera-equipped devices on the same Wi-Fi open the **same page**, exchange
+connection signaling by scanning the QR code shown on the peer's screen, and
+then view each other's camera feed in real time. No app install, no signaling
+server, and the pages never talk to each other.
+
+There is a single page and no role to pick: both sides start as the offerer,
+and whoever scans first automatically becomes the answerer.
 
 ### Use Scenario
 
@@ -28,33 +31,33 @@ install, no signaling server, and the pages never talk to each other.
 Deployed on GitHub Pages, so the pages are served over HTTPS and the camera
 works with no extra setup:
 
-- Offerer: `https://chenli1379.github.io/web_p2p/offer.html`
-- Answerer: `https://chenli1379.github.io/web_p2p/answer.html`
+- Both devices: `https://chenli1379.github.io/web_p2p/`
 
 HTTPS is required: browsers only expose the camera in a secure context,
 which GitHub Pages provides.
 
 ### Interaction Flow
 
-1. **Open both pages and grant camera access.** The offerer page grabs the
-   camera and generates the Offer QR code on load.
-2. **Wait for the Offer code.** Wait until the offerer's status bar reads
-   "Offer 二维码就绪" — the code is redrawn once ICE gathering finishes.
-   Scanning the earlier version is rejected with a "still gathering ICE"
-   prompt rather than silently failing, so just wait and scan again.
-3. **Answerer scans the Offer.** On the answerer, tap "扫描 Offer" and point
-   it at the offerer's QR code. An Answer QR code is generated automatically.
-4. **Offerer scans the Answer back.** Once the answerer's status bar reads
-   "Answer 二维码就绪", tap "扫描 Answer" on the offerer and scan that code.
-5. **Connected.** Both status bars read "P2P 连接已建立" and the remote video
-   pane shows the other peer.
+1. **Open the page on both devices and grant camera access.** Each side
+   grabs the camera and generates an Offer QR code on load — both start in
+   the offerer role.
+2. **One side scans the other.** Wait until the status bar reads
+   "Offer 二维码就绪" (the code is redrawn once ICE gathering finishes;
+   scanning the earlier version is rejected with a "still gathering ICE"
+   prompt rather than silently failing). Then, on either device, tap
+   "扫描对端" and point it at the peer's QR code. This side now becomes the
+   answerer and its own QR code switches to an Answer code.
+3. **The other side scans back.** Once the answerer's status bar reads
+   "Answer 二维码就绪", tap "扫描对端" on the offerer and scan that code.
+4. **Connected.** Both status bars read "P2P 连接已建立" and the remote
+   video pane shows the other peer.
 
 Recovery:
 
-- Scanning the wrong role's code (e.g. scanning an Answer on the answerer)
-  is reported in the status bar; just scan again.
-- To show your own QR code again, tap "重显 Answer 码" on the answerer or
-  "重新生成 Offer" on the offerer.
+- Both sides tried to scan at the same time and both ended up as the
+  answerer? Tap "重新生成" on either device to return to the offerer role
+  and start over.
+- To show your own QR code again, tap "重显我的二维码".
 
 ### Result
 
@@ -78,9 +81,11 @@ Recovery:
 ### 概述
 
 纯浏览器端、无服务器的 P2P 实时互看工具。同一 Wi-Fi 下两台带摄像头的
-设备各自打开对应角色的网页，通过扫描对方页面上的二维码完成连接信令
-交换，随后实时查看对方的摄像头画面。无需安装 App、没有信令服务器，
+设备打开**同一个页面**，通过扫描对方页面上的二维码完成连接信令交换，
+随后实时查看对方的摄像头画面。无需安装 App、没有信令服务器，
 两个页面之间互不通信。
+
+只有一页、无需选角色：两端默认都是发起端，谁先扫码谁自动变为应答端。
 
 ### 使用场景
 
@@ -93,31 +98,30 @@ Recovery:
 
 部署在 GitHub Pages 上，走 HTTPS，摄像头不用额外配置：
 
-- 发起端：`https://chenli1379.github.io/web_p2p/offer.html`
-- 应答端：`https://chenli1379.github.io/web_p2p/answer.html`
+- 两端都打开：`https://chenli1379.github.io/web_p2p/index.html`
 
 必须 HTTPS：浏览器只在安全上下文里暴露摄像头，GitHub Pages 自带这个
 条件。
 
 ### 交互流程
 
-1. **打开两个页面并授权摄像头。** 发起端打开后自动采集摄像头并生成
-   Offer 二维码。
-2. **等 Offer 码就绪。** 等发起端状态栏变成「Offer 二维码就绪」再扫
+1. **两端打开同一页面并授权摄像头。** 每端打开后自动采集摄像头并生成
+   Offer 二维码 —— 两端都从发起端角色开始。
+2. **任意一端扫对端。** 等状态栏变成「Offer 二维码就绪」再扫
    —— ICE 收集完成后二维码会重绘一次。扫到早先那一版会被拒收并提示
-   「二维码尚未就绪」，而不是静默连不上，等一下重扫即可。
-3. **应答端扫 Offer。** 应答端点「扫描 Offer」，对准发起端的二维码。
-   扫到后自动生成 Answer 二维码。
-4. **发起端回扫 Answer。** 等应答端状态栏变成「Answer 二维码就绪」后，
-   发起端点「扫描 Answer」，扫应答端的二维码。
-5. **建连完成。** 两端状态栏都变成「P2P 连接已建立」，远端视频区出现
+   「二维码尚未就绪」，而不是静默连不上，等一下重扫即可。然后任一端
+   点「扫描对端」，对准对方的二维码：这一端自动变为应答端，自己的
+   二维码切换成 Answer 码。
+3. **对端回扫。** 等应答端状态栏变成「Answer 二维码就绪」后，发起端
+   点「扫描对端」，扫应答端的二维码。
+4. **建连完成。** 两端状态栏都变成「P2P 连接已建立」，远端视频区出现
    对端画面。
 
 异常恢复：
 
-- 任一端扫错（比如扫到了同角色的码）会有提示，按状态栏重新扫即可。
-- 中途想再看一次自己这边的二维码：应答端点「重显 Answer 码」，
-  发起端点「重新生成 Offer」。
+- 两端同时抢扫、都变成了应答端？任一端点「重新生成」回到发起端状态
+  重来。
+- 中途想再看一次自己这边的二维码：点「重显我的二维码」。
 
 ### 结果
 

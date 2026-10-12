@@ -1,5 +1,5 @@
-// host.html / guest.html 共享的 P2P 逻辑
-// 双端同代码,SDP 过滤与 QR 瘦身规则天然一致
+// index.html 的 P2P 逻辑
+// 双端同代码,SDP 过滤与 QR 瘦身规则天然一致;角色只由扫码顺序决定
 
 (function () {
   'use strict';
@@ -781,7 +781,7 @@
     if (state.localStream) state.localStream.getTracks().forEach((track) => track.stop());
   });
 
-  // 各角色页(offer/answer.html)直接调用裸 setStatus(),这里补上全局别名
+  // 页面脚本直接调用裸 setStatus(),这里补上全局别名
   window.setStatus = setStatus;
 
   window.P2P = {
