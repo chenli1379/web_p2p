@@ -10,12 +10,15 @@
   const qrCanvas = document.getElementById('qrCanvas');
   const scanModal = document.getElementById('scanModal');
   const scanVideo = document.getElementById('scanVideo');
+  const scanStage = document.querySelector('.scan-stage');
 
   const state = {
     localStream: null,
     localStreamPromise: null,
     scanStream: null,
     scanTimer: null,
+    scanStartedAt: 0,
+    scanHintShown: false,
     peerConnection: null,
     resumeLocalPreview: false,
   };
@@ -68,7 +71,7 @@
     let rendered = false;
     try {
       QRCode.toCanvas(qrCanvas, text, {
-        // 渲染像素由 CSS 决定(#qrCanvas 的 width),这里的 width 只是重设画布
+        // 画布分辨率(绘制缓冲像素),不是显示尺寸;显示尺寸由 #qrCanvas 的 CSS 决定
         width: 480,
         margin: 2,
         // 模板载荷只有 254 字符(明文是 919 B),有富余把纠错从 L(7%)提到 M(15%)
@@ -80,6 +83,11 @@
           setStatus('二维码生成失败：' + error.message, false);
           return;
         }
+        // qrcode@1.5.1 渲染时会写死 inline style width/height = 480px,
+        // 盖掉 CSS 里 min(100%, 340px) 的响应式宽度,手机上因此超出容器。
+        // 渲染成功后清掉 inline 值,把显示尺寸还给样式表(容器小则等比缩小)。
+        qrCanvas.style.width = '';
+        qrCanvas.style.height = '';
         rendered = true;
       });
     } catch (error) {
@@ -680,6 +688,9 @@
       }
 
       scanModal.classList.remove('hidden');
+      if (scanStage) scanStage.classList.remove('success');
+      state.scanStartedAt = Date.now();
+      state.scanHintShown = false;
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
@@ -700,11 +711,25 @@
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
 
+        // 一直扫不上时给一次明确提示,别让用户对着取景框干等、猜是否扫到了
+        if (!code && !state.scanHintShown && Date.now() - state.scanStartedAt > 12000) {
+          state.scanHintShown = true;
+          setStatus('仍未识别到二维码，请靠近一点、正对屏幕并保持稳定', false);
+        }
+
         if (code && code.data) {
           clearInterval(state.scanTimer);
           state.scanTimer = null;
-          closeScanner();
-          onText(code.data);
+          // 扫到了:先绿框定格 + 震动告知,再关窗回调。之前直接关窗一闪而过,
+          // 用户无法确认到底扫没扫上(iOS Safari 不支持 vibrate,靠绿框兜底)
+          if (scanStage) scanStage.classList.add('success');
+          if (navigator.vibrate) navigator.vibrate(80);
+          setTimeout(() => {
+            // 定格期间用户手动关窗的,按放弃处理,不再回调
+            if (scanModal.classList.contains('hidden')) return;
+            closeScanner();
+            onText(code.data);
+          }, 450);
         }
       }, 500);
     } catch (error) {
