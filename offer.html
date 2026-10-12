@@ -62,7 +62,17 @@
 
     <div id="scanModal" class="scan-modal hidden">
       <div class="scanner-panel">
-        <video id="scanVideo" autoplay playsinline muted></video>
+        <div class="scan-stage">
+          <video id="scanVideo" autoplay playsinline muted></video>
+          <div class="scan-frame">
+            <span class="scan-corner tl"></span>
+            <span class="scan-corner tr"></span>
+            <span class="scan-corner bl"></span>
+            <span class="scan-corner br"></span>
+            <div class="scan-line"></div>
+          </div>
+          <div class="scan-badge">已识别</div>
+        </div>
         <div class="scan-actions">
           <button id="scanStartBtn" class="primary">开始扫描</button>
           <button id="scanCloseBtn">关闭</button>
