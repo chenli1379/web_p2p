@@ -173,8 +173,10 @@
         min-height: 220px;
       }
 
-      /* 内边距归零:绘制区就是整块画布。白边交给 QR 自己的 margin 参数,
-         之前那 10px padding 白白吃掉 7% 渲染宽度。 */
+      /* 显示尺寸全权由这里的规则决定:空间不足时缩到容器 100% 宽(正方形等比),
+         宽裕时最大 340px。注意 qrcode 库渲染时会写 inline width/height(px 定值),
+         common.js 的 renderQr 回调里已把这些 inline 值清空,否则本规则会被顶掉。
+         内边距归零:白边交给 QR 自己的 margin 参数,不加 padding 白吃渲染宽度。 */
       #qrCanvas {
         width: min(100%, 340px);
         height: auto;
@@ -238,6 +240,78 @@
         gap: 8px;
         margin-top: 10px;
       }
+
+      /* 扫码取景特效:遮罩挖出正方形取景区,四角括号 + 往复扫描线,
+         让用户知道取景范围与「正在扫」;识别成功后绿框定格并亮「已识别」 */
+      .scan-stage {
+        position: relative;
+        overflow: hidden;
+        border-radius: 12px;
+      }
+
+      .scan-frame {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: min(64%, 210px);
+        aspect-ratio: 1 / 1;
+        transform: translate(-50%, -50%);
+        border-radius: 12px;
+        /* 用超大扩散阴影铺暗取景区之外的画面,形成挖空效果 */
+        box-shadow: 0 0 0 999px rgba(2, 6, 23, 0.55);
+        pointer-events: none;
+      }
+
+      .scan-corner {
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        border: 3px solid var(--green);
+      }
+      .scan-corner.tl { top: 0; left: 0; border-right: none; border-bottom: none; border-top-left-radius: 8px; }
+      .scan-corner.tr { top: 0; right: 0; border-left: none; border-bottom: none; border-top-right-radius: 8px; }
+      .scan-corner.bl { bottom: 0; left: 0; border-right: none; border-top: none; border-bottom-left-radius: 8px; }
+      .scan-corner.br { bottom: 0; right: 0; border-left: none; border-top: none; border-bottom-right-radius: 8px; }
+
+      .scan-line {
+        position: absolute;
+        left: 6px;
+        right: 6px;
+        top: 4%;
+        height: 2px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.95), transparent);
+        box-shadow: 0 0 10px rgba(52, 211, 153, 0.75);
+        animation: scan-sweep 1.8s ease-in-out infinite;
+      }
+
+      @keyframes scan-sweep {
+        0% { top: 4%; opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { top: 96%; opacity: 0; }
+      }
+
+      .scan-badge {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 5px 14px;
+        border-radius: 999px;
+        background: rgba(52, 211, 153, 0.95);
+        color: #052e21;
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        opacity: 0;
+        transition: opacity 0.12s ease;
+      }
+
+      .scan-stage.success .scan-line { display: none; }
+      .scan-stage.success .scan-corner { border-color: #a7f3d0; }
+      .scan-stage.success .scan-frame { box-shadow: 0 0 0 999px rgba(52, 211, 153, 0.22); }
+      .scan-stage.success .scan-badge { opacity: 1; }
 
       @media (min-width: 640px) {
         .app { width: min(100%, 760px); }
