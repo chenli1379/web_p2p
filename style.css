@@ -173,12 +173,14 @@
         min-height: 220px;
       }
 
+      /* 内边距归零:绘制区就是整块画布。白边交给 QR 自己的 margin 参数,
+         之前那 10px padding 白白吃掉 7% 渲染宽度。 */
       #qrCanvas {
-        width: min(100%, 300px);
+        width: min(100%, 340px);
         height: auto;
         background: rgba(255,255,255,0.92);
         border-radius: 14px;
-        padding: 10px;
+        padding: 0;
         border: 1px solid rgba(148, 163, 184, 0.2);
       }
 
