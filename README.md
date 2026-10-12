@@ -31,7 +31,7 @@ and whoever scans first automatically becomes the answerer.
 Deployed on GitHub Pages, so the pages are served over HTTPS and the camera
 works with no extra setup:
 
-- Both devices: `https://chenli1379.github.io/web_p2p/`
+- Both devices: `https://chenli1379.github.io/web_p2p/index.html`
 
 HTTPS is required: browsers only expose the camera in a secure context,
 which GitHub Pages provides.
