@@ -25,7 +25,7 @@ Then open `http://127.0.0.1:8901/offer.html`. Opening the files directly over `f
 
 ### 2. Scan as prompted
 
-1. The offerer page grabs the camera and generates the Offer QR code on load. Wait until the status bar reads "Offer 二维码就绪" — the code is redrawn once ICE gathering finishes, and scanning the earlier version will not connect.
+1. The offerer page grabs the camera and generates the Offer QR code on load. Wait until the status bar reads "Offer 二维码就绪" — the code is redrawn once ICE gathering finishes. Scanning the earlier version is rejected with a "still gathering ICE" prompt rather than silently failing, so just wait and scan again.
 2. On the answerer, tap "扫描 Offer" and point it at the offerer's QR code. An Answer QR code is generated automatically.
 3. Once the answerer's status bar reads "Answer 二维码就绪", tap "扫描 Answer" on the offerer and scan that code.
 4. Both status bars read "P2P 连接已建立" and the remote video pane shows the other peer.
@@ -35,9 +35,11 @@ Scanning the wrong role's code (e.g. scanning an Answer on the answerer) is repo
 ## Notes
 
 - Signaling is exchanged purely offline via QR codes. There is no signaling server and the pages never talk to each other.
-- Same network only. `LAN_MODE = true` in `common.js` and `iceServers` is empty, so only host candidates are gathered. For use across networks, set it to `false` and configure a reachable STUN server — but expect the QR payload to grow, since srflx candidates are then included too, and expect the ICE gathering timeout to need raising as well.
-- SDP is slimmed before it goes into a QR code (`slimSdpForQr`), keeping only the lines needed for negotiation so it fits within the Version 40-L capacity limit. The QR canvas renders at about 300px wide, so a payload much above 2000 bytes gets hard to scan off a phone screen.
-- GitHub Pages caches assets for 10 minutes, so a `common.js` change can take that long to reach a phone that has already loaded the page.
+- Same network only. `LAN_MODE = true` in `common.js` and `iceServers` is empty, so only host candidates are gathered. The QR payload hardcodes the host-candidate skeleton (`typ host`, `network-cost 999`), so switching `LAN_MODE` to `false` means updating the template in `buildSdp` too, not just the `iceServers` list.
+- **The QR code does not contain SDP.** Both ends are assumed to be Chrome with opus + h264, so all the boilerplate is a hardcoded template in `buildSdp` and only the variable fields travel: session id, ICE candidate hosts/ports, `ice-ufrag`, `ice-pwd`, the DTLS fingerprint (colons stripped), the two payload types, the H264 `fmtp`, the m-line mids, and each m-line's direction. That is ~254 characters — QR v11, 61x61 modules — versus 919 bytes of slimmed SDP text (v25, 117x117) before. The textarea still shows the readable slim SDP; only the QR carries the compact payload.
+- Only opus + a single H264 variant are supported, and only host ICE candidates are described (`LAN_MODE`). The candidate `foundation` and `priority` are hardcoded rather than transmitted: they vary per run, but only the local ICE agent uses them, so a peer accepts the substituted values. Verified with a real Chrome-to-Chrome connection.
+- Because the template is hardcoded, a Chrome change that moves the payload types or adds an m-line will *not* produce an error — it produces a connection that succeeds with dead media. If audio or video is silently missing, compare `buildQrPayload` output against `slimSdpForQr` output first.
+- GitHub Pages caches assets for 10 minutes, so a `common.js` change can take that long to reach a phone that has already loaded the page. During that window an old page's plaintext QR code still scans correctly (the receiver falls back to the plaintext branch), but a new payload scanned by an old page will be reported as an unrecognized code — just reload.
 
 ## 用法
 
@@ -62,7 +64,7 @@ python -m http.server 8901
 
 ### 2. 按提示扫码
 
-1. 发起端打开后自动采集摄像头并生成 Offer 二维码,等状态栏变成「Offer 二维码就绪」再扫 —— ICE 收集完成后二维码会重绘一次,扫到早先那一版是连不上的。
+1. 发起端打开后自动采集摄像头并生成 Offer 二维码,等状态栏变成「Offer 二维码就绪」再扫 —— ICE 收集完成后二维码会重绘一次。扫到早先那一版会被拒收并提示「二维码尚未就绪」,而不是静默连不上,等一下重扫即可。
 2. 应答端点「扫描 Offer」,对准发起端的二维码。扫到后自动生成 Answer 二维码。
 3. 等应答端状态栏变成「Answer 二维码就绪」后,发起端点「扫描 Answer」,扫应答端的二维码。
 4. 两端状态栏都变成「P2P 连接已建立」,远端视频区出现对端画面。
@@ -72,6 +74,8 @@ python -m http.server 8901
 ## 说明
 
 - 信令完全靠二维码离线交换,没有信令服务器,页面之间不通信。
-- 仅限同一网络。`common.js` 里 `LAN_MODE = true`,`iceServers` 是空的,只收 host 候选。要跨网使用改成 `false` 并配上可达的 STUN,但要注意二维码会因此变大(多出 srflx 候选),ICE 收集超时也需要一并调长。
-- SDP 进二维码前会做瘦身(`slimSdpForQr`),只保留协商必需的行,控制在 Version 40-L 的容量上限内。二维码画布渲染宽度约 300px,载荷明显超过 2000 字节后,在手机屏幕上就比较难扫了。
-- GitHub Pages 的静态资源缓存是 10 分钟,改完 `common.js` 后,已经加载过页面的手机可能要等这么久才生效。
+- 仅限同一网络。`common.js` 里 `LAN_MODE = true`,`iceServers` 是空的,只收 host 候选。二维码载荷里硬编码了 host 候选的骨架(`typ host`、`network-cost 999`),所以把 `LAN_MODE` 改成 `false` 时,除了 `iceServers`,还要同步改 `buildSdp` 里的模板。
+- **二维码里不放 SDP。** 双端都假定是 Chrome 且支持 opus + h264,所以样板全部是 `buildSdp` 里的固定模板,只传变动的字段:会话 id、ICE 候选的 host/port、`ice-ufrag`、`ice-pwd`、DTLS 指纹(去掉冒号)、两个 payload type、H264 的 `fmtp`、各 m 段的 mid,以及各 m 段的方向。合计约 254 字符 —— QR v11、61x61 模块;改造前是 919 字节瘦身 SDP 文本(v25、117x117)。页面下方文本框显示的仍是可读的瘦身 SDP,只有二维码里是压缩载荷。
+- 只支持 opus + 单个 H264 变种,且只描述 host 类 ICE 候选(`LAN_MODE`)。候选的 `foundation`/`priority` 是硬编码而非传输:它们每次运行都会变,但只有本端 ICE agent 会用,对端接受被替换的值 —— 已用真实 Chrome 双向建连验证。
+- 模板是硬编码的,所以 Chrome 改了 payload type 分配或增加 m 段**不会**报错 —— 症状是连接成功但媒体不通。若出现画面或声音静默缺失,先用 `buildQrPayload` 的输出和 `slimSdpForQr` 的输出做对比。
+- GitHub Pages 的静态资源缓存是 10 分钟,改完 `common.js` 后,已经加载过页面的手机可能要等这么久才生效。缓存期内旧页面生成的明文码仍能被新页面正确扫到(接收端会落到明文分支);反过来,新载荷被旧页面扫到会提示「不支持的二维码版本」,刷新页面即可。
